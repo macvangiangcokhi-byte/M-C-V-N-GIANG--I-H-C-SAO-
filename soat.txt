@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng dụng tạo trắc nghiệm - Môn Giáo dục thể chất</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Libraries for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background-color: #f8fafc; /* gray-50 */
+        }
+        .loader {
+            border: 4px solid #e5e7eb; /* gray-200 */
+            border-top: 4px solid #3b82f6; /* blue-500 */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1; /* slate-300 */
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; /* slate-400 */
+        }
+        [contenteditable="true"]:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #60a5fa; /* blue-400 */
+        }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            max-width: 90%;
+            width: 500px;
+            transform: scale(0.95);
+            transition: transform 0.3s;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+
+        /* Print Styles */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-area, #print-area * {
+                visibility: visible;
+            }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .no-print {
+                display: none;
+            }
+            @page {
+                margin: 0.75in;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="app" class="max-w-screen-xl mx-auto p-6 sm:p-8 lg:p-12 hidden">
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-sm shadow-sm rounded-xl p-5 mb-10 flex items-center justify-between sticky top-6 z-50 border border-slate-200">
+            <div class="flex items-center space-x-5">
+                <button id="backToSelectionBtn" class="hidden text-slate-600 hover:text-slate-900 font-semibold py-2 px-3 rounded-lg hover:bg-slate-100 transition-colors mr-2 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+                    Quay lại
+                </button>
+                <img src="https://upload.wikimedia.org/wikipedia/vi/4/49/Logo_dhsaodo_moi.PNG" alt="Logo Trường Đại học Sao Đỏ" class="h-14 w-14 object-contain" onerror="this.onerror=null;this.src='https://placehold.co/56x56/0284c7/FFFFFF?text=Logo';">
+                <div>
+                    <h1 class="text-xl font-bold text-blue-700">ỨNG DỤNG TRẮC NGHIỆM THÔNG MINH</h1>
+                    <p class="text-base text-slate-500">Môn: Giáo dục thể chất - Trường Đại học Sao Đỏ, Hải Phòng</p>
+                </div>
+            </div>
+            <div id="teacherActions" class="flex items-center gap-3">
+                <button id="exportWordBtn" class="hidden bg-sky-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-sky-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 15v-4"/><path d="M15 14l-3-3-3 3"/></svg>
+                    Xuất Word
+                </button>
+                <button id="printBtn" class="hidden bg-teal-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-teal-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    In bộ đề
+                </button>
+                <button id="switchModeBtn" class="bg-green-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/><path d="M12 21a6 6 0 0 0-9-9 9 9 0 1 1 9 9Z"/></svg>
+                    Chế độ sinh viên
+                </button>
+            </div>
+             <div id="studentHeaderActions" class="hidden">
+                 <button id="backToTeacherViewBtn" class="bg-purple-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-purple-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 2 5 5-14 14-5-5 14-14Z"/><path d="m18 4-1.5 1.5"/><path d="m6 16-1.5 1.5"/></svg>
+                    Chế độ giảng viên
+                </button>
+            </div>
+        </header>
+
+        <!-- Teacher View -->
+        <main id="teacherView">
+            <div id="selectionScreen" class="text-center bg-white p-8 sm:p-12 rounded-xl shadow-lg border border-slate-200">
+                <h2 class="text-3xl font-bold mb-4 text-slate-800">Chọn hình thức thiết kế</h2>
+                <p class="text-slate-500 mb-8 max-w-lg mx-auto">Bắt đầu tạo bộ đề trắc nghiệm cho sinh viên để kiểm tra trực tuyến hoặc chuẩn bị tài liệu để in.</p>
+                <div class="flex flex-col sm:flex-row justify-center gap-6">
+                    <button id="designOnlineBtn" class="bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-blue-400/50 hover:-translate-y-1 flex items-center justify-center gap-3 text-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        Thiết kế Online
+                    </button>
+                    <button id="designOfflineBtn" class="bg-teal-600 text-white font-semibold py-4 px-8 rounded-lg hover:bg-teal-700 transition-all duration-200 shadow-lg hover:shadow-teal-400/50 hover:-translate-y-1 flex items-center justify-center gap-3 text-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        Thiết kế Offline
+                    </button>
+                </div>
+            </div>
+
+            <div id="creationContainer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Left Column: Generator & Question List -->
+                <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex flex-col space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold mb-4 text-slate-700 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+                            1. Tạo câu hỏi
+                        </h2>
+                        <div class="space-y-4 p-4 border rounded-lg bg-slate-50">
+                            <div>
+                                <label for="questionType" class="block text-sm font-medium text-slate-600 mb-1">Loại câu hỏi:</label>
+                                <select id="questionType" class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-base p-2.5">
+                                    <option value="multiple_choice">Trắc nghiệm nhiều phương án</option>
+                                    <option value="true_false">Trắc nghiệm Đúng/Sai (4 mệnh đề)</option>
+                                </select>
+                            </div>
+                            <div id="aiGeneratorSection">
+                                <div class="border-b border-slate-200 pb-4 mb-4">
+                                    <button id="aiModeKeyword" class="font-semibold py-2 px-4 rounded-t-lg bg-white border-slate-200 border-l border-t border-r">Từ khóa</button>
+                                    <button id="aiModeDocument" class="font-semibold py-2 px-4 text-slate-500">Tài liệu</button>
+                                </div>
+                                <div id="keywordInputContainer">
+                                     <label for="keywordInput" class="block text-sm font-medium text-slate-600 mb-1">Nhập từ khóa hoặc chủ đề:</label>
+                                    <input type="text" id="keywordInput" placeholder="Ví dụ: Dinh dưỡng thể thao, Luật bóng đá..." class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-base p-2.5">
+                                </div>
+                                <div id="documentInputContainer" class="hidden">
+                                    <label for="documentInput" class="block text-sm font-medium text-slate-600 mb-1">Dán nội dung tài liệu tham khảo vào đây:</label>
+                                    <textarea id="documentInput" rows="5" placeholder="Dán văn bản..." class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition text-base p-2.5"></textarea>
+                                    <label for="imageUpload" class="mt-2 block text-sm font-medium text-slate-600 mb-1">Hoặc tải lên hình ảnh:</label>
+                                    <input type="file" id="imageUpload" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                    <img id="imagePreview" class="hidden mt-2 rounded-lg max-h-40 w-auto" />
+                                </div>
+                                <button id="generateBtn" class="mt-4 w-full bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center">
+                                    <span id="generateBtnText">Tạo câu hỏi bằng AI</span>
+                                    <div id="loader" class="loader hidden"></div>
+                                </button>
+                            </div>
+                            <div class="text-center text-slate-400 text-xs my-3 tracking-wider">HOẶC</div>
+                             <button id="addManualBtn" class="w-full bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-300 transition-colors flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Thêm thủ công
+                             </button>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-200 pt-4 flex-grow flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <h2 class="text-xl font-bold text-slate-700 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                                2. Danh sách câu hỏi
+                            </h2>
+                            <button id="deleteAllBtn" class="hidden text-sm text-red-600 hover:text-red-800 font-semibold hover:bg-red-100 rounded-md px-2 py-1 transition">Xóa toàn bộ</button>
+                        </div>
+                        <div id="questionList" class="flex-grow h-96 overflow-y-auto custom-scroll border border-slate-200 rounded-lg p-3 space-y-3 bg-slate-50/50">
+                            <p class="text-slate-500 text-center italic mt-4">Chưa có câu hỏi nào.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Editor -->
+                <div class="lg:col-span-7 bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex flex-col">
+                     <div id="editorPanel" class="hidden flex-grow flex flex-col">
+                        <h2 class="text-xl font-bold mb-4 text-slate-700 flex items-center gap-2">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            3. Chỉnh sửa câu hỏi
+                        </h2>
+                        <div class="space-y-6 flex-grow">
+                            <div>
+                                <label class="font-semibold text-slate-600 text-base">Nội dung câu hỏi (chủ đề chung):</label>
+                                <div id="questionEditor" contenteditable="true" class="mt-1 p-3 border border-slate-300 rounded-lg min-h-[100px] focus:ring-2 focus:ring-blue-400 bg-slate-50/50 transition text-base"></div>
+                            </div>
+                            <div>
+                                <label class="font-semibold text-slate-600 text-base">Các phương án / mệnh đề:</label>
+                                <div id="answerEditor" class="mt-2 space-y-3">
+                                    <!-- Answers will be dynamically inserted here -->
+                                </div>
+                                <button id="addAnswerBtn" class="hidden mt-3 text-sm bg-slate-200 text-slate-700 py-1.5 px-3 rounded-md hover:bg-slate-300 transition flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Thêm phương án
+                                </button>
+                            </div>
+                             <div>
+                                <label class="font-semibold text-slate-600 text-base">Giải thích đáp án (chung):</label>
+                                <div id="explanationEditor" contenteditable="true" class="mt-1 p-3 border border-slate-300 rounded-lg min-h-[100px] focus:ring-2 focus:ring-blue-400 bg-slate-50/50 transition text-base"></div>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-end space-x-3 border-t border-slate-200 pt-4">
+                            <button id="deleteQuestionBtn" class="bg-red-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-red-700 transition-all duration-200 shadow-sm hover:shadow-md">Xóa câu hỏi này</button>
+                            <button id="saveChangesBtn" class="bg-indigo-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-indigo-700 transition-all duration-200 shadow-sm hover:shadow-md">Lưu thay đổi</button>
+                        </div>
+                    </div>
+                     <div id="editorPlaceholder" class="flex-grow flex flex-col items-center justify-center text-center text-slate-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 mb-4"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <p class="font-semibold text-lg">Bắt đầu chỉnh sửa</p>
+                        <p class="text-sm">Chọn hoặc tạo một câu hỏi để chỉnh sửa tại đây.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Student View -->
+        <main id="studentView" class="hidden bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-slate-200 relative">
+            <div id="studentInfoScreen">
+                <h2 class="text-2xl font-bold text-center mb-4 text-slate-800">Bắt đầu làm bài</h2>
+                <p class="text-slate-500 text-center mb-6">Vui lòng nhập họ và tên của bạn để bắt đầu.</p>
+                <div class="max-w-sm mx-auto">
+                    <label for="studentNameInput" class="block text-sm font-medium text-slate-600 mb-1">Họ và tên (không bắt buộc):</label>
+                    <input type="text" id="studentNameInput" placeholder="Nguyễn Văn A" class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition mb-4 p-3 text-base">
+                    <button id="startQuizBtn" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-blue-400/50 text-lg">Bắt đầu</button>
+                </div>
+            </div>
+
+            <div id="quizContainer" class="hidden">
+                <div id="studentQuestionContainer" class="mb-8">
+                    <!-- Question will be rendered here -->
+                </div>
+                <div id="quizNavigation" class="flex justify-between items-center border-t border-slate-200 pt-6">
+                    <button id="prevQuestionBtn" class="bg-slate-500 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Câu trước</button>
+                    <span id="questionCounter" class="text-slate-600 font-medium text-lg"></span>
+                    <button id="nextQuestionBtn" class="bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-blue-700 transition-colors">Câu tiếp</button>
+                    <button id="submitQuizBtn" class="hidden bg-green-600 text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-green-700 transition-colors">Nộp bài</button>
+                </div>
+            </div>
+            <div id="resultsContainer" class="hidden">
+                 <!-- Results will be rendered here -->
+            </div>
+        </main>
+        
+        <footer class="text-center mt-8 text-sm text-slate-500">
+            Bản quyền thuộc về giảng viên Hà Đình Soát - Trường Đại học Sao Đỏ
+        </footer>
+    </div>
+
+    <!-- Clock -->
+    <div id="clock" class="fixed bottom-4 right-4 bg-white/50 backdrop-blur-sm text-slate-700 text-sm font-semibold px-4 py-2 rounded-full shadow-md border border-slate-200"></div>
+    
+    <!-- Teacher Info Modal -->
+    <div id="teacherInfoModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-center mb-4 text-slate-800">Thông tin giảng viên</h2>
+            <p class="text-slate-500 text-center mb-6">Vui lòng nhập thông tin để cá nhân hóa các nhận xét và tệp xuất ra.</p>
+            <div class="space-y-4">
+                <div>
+                    <label for="teacherNameInput" class="block text-sm font-medium text-slate-600 mb-1">Họ và tên giảng viên:</label>
+                    <input type="text" id="teacherNameInput" placeholder="Nguyễn Thị B" class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label for="teacherTitleSelect" class="block text-sm font-medium text-slate-600 mb-1">Danh xưng:</label>
+                    <select id="teacherTitleSelect" class="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                        <option value="">-- Chọn danh xưng --</option>
+                        <option value="Thầy">Thầy</option>
+                        <option value="Cô">Cô</option>
+                    </select>
+                </div>
+                <button id="startAppBtn" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-blue-400/50">Bắt đầu sử dụng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="modal-overlay">
+        <div class="modal-content text-center">
+            <div id="modalIcon" class="mx-auto mb-4"></div>
+            <p id="modalMessage" class="mb-6 text-lg text-slate-700"></p>
+            <div id="modalActions">
+                <button id="modalConfirmBtn" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">OK</button>
+                <button id="modalCancelBtn" class="bg-slate-200 text-slate-800 font-semibold py-2 px-6 rounded-lg hover:bg-slate-300 transition-colors ml-4">Hủy</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Area for printing -->
+    <div id="print-area" class="hidden"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- STATE MANAGEMENT ---
+        let quizData = [];
+        let selectedQuestionId = null;
+        let currentStudentQuestionIndex = 0;
+        let studentAnswers = {};
+        let studentName = '';
+        let finalScore = 0;
+        let teacherName = 'Giảng viên';
+        let teacherTitle = 'Giảng viên';
+        let aiMode = 'keyword';
+        let uploadedImageBase64 = null;
+
+        // --- DOM ELEMENTS ---
+        const appContainer = document.getElementById('app');
+        const teacherView = document.getElementById('teacherView');
+        const studentView = document.getElementById('studentView');
+        const switchModeBtn = document.getElementById('switchModeBtn');
+        const keywordInput = document.getElementById('keywordInput');
+        const documentInput = document.getElementById('documentInput');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const generateBtn = document.getElementById('generateBtn');
+        const generateBtnText = document.getElementById('generateBtnText');
+        const loader = document.getElementById('loader');
+        const questionList = document.getElementById('questionList');
+        const deleteAllBtn = document.getElementById('deleteAllBtn');
+        const editorPanel = document.getElementById('editorPanel');
+        const editorPlaceholder = document.getElementById('editorPlaceholder');
+        const questionEditor = document.getElementById('questionEditor');
+        const answerEditor = document.getElementById('answerEditor');
+        const explanationEditor = document.getElementById('explanationEditor');
+        const addAnswerBtn = document.getElementById('addAnswerBtn');
+        const saveChangesBtn = document.getElementById('saveChangesBtn');
+        const deleteQuestionBtn = document.getElementById('deleteQuestionBtn');
+        const selectionScreen = document.getElementById('selectionScreen');
+        const creationContainer = document.getElementById('creationContainer');
+        const designOnlineBtn = document.getElementById('designOnlineBtn');
+        const designOfflineBtn = document.getElementById('designOfflineBtn');
+        const printBtn = document.getElementById('printBtn');
+        const exportWordBtn = document.getElementById('exportWordBtn');
+        const backToSelectionBtn = document.getElementById('backToSelectionBtn');
+        const teacherActions = document.getElementById('teacherActions');
+        const questionType = document.getElementById('questionType');
+        const aiGeneratorSection = document.getElementById('aiGeneratorSection');
+        const addManualBtn = document.getElementById('addManualBtn');
+        const studentHeaderActions = document.getElementById('studentHeaderActions');
+        const backToTeacherViewBtn = document.getElementById('backToTeacherViewBtn');
+        const aiModeKeyword = document.getElementById('aiModeKeyword');
+        const aiModeDocument = document.getElementById('aiModeDocument');
+        const keywordInputContainer = document.getElementById('keywordInputContainer');
+        const documentInputContainer = document.getElementById('documentInputContainer');
+        const studentInfoScreen = document.getElementById('studentInfoScreen');
+        const studentNameInput = document.getElementById('studentNameInput');
+        const startQuizBtn = document.getElementById('startQuizBtn');
+        const quizContainer = document.getElementById('quizContainer');
+        const studentQuestionContainer = document.getElementById('studentQuestionContainer');
+        const prevQuestionBtn = document.getElementById('prevQuestionBtn');
+        const nextQuestionBtn = document.getElementById('nextQuestionBtn');
+        const submitQuizBtn = document.getElementById('submitQuizBtn');
+        const questionCounter = document.getElementById('questionCounter');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const clockElement = document.getElementById('clock');
+        const teacherInfoModal = document.getElementById('teacherInfoModal');
+        const teacherNameInput = document.getElementById('teacherNameInput');
+        const teacherTitleSelect = document.getElementById('teacherTitleSelect');
+        const startAppBtn = document.getElementById('startAppBtn');
+        const customModal = document.getElementById('customModal');
+        const modalIcon = document.getElementById('modalIcon');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        const printArea = document.getElementById('print-area');
+
+        function updateClock() {
+            const now = new Date();
+            const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+            const day = days[now.getDay()];
+            const date = now.toLocaleDateString('vi-VN');
+            const time = now.toLocaleTimeString('vi-VN');
+            clockElement.textContent = `${day}, ${date}, ${time}`;
+        }
+        
+        let confirmCallback = null;
+        const icons = {
+            alert: '<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500 bg-blue-100 rounded-full p-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+            confirm: '<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-amber-500 bg-amber-100 rounded-full p-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>',
+        };
+        const showModal = (message, type = 'alert') => {
+            modalMessage.innerHTML = message;
+            modalIcon.innerHTML = icons[type] || '';
+            if (type === 'alert') {
+                modalCancelBtn.classList.add('hidden');
+                modalConfirmBtn.textContent = 'OK';
+                modalConfirmBtn.className = 'bg-blue-600 text-white font-semibold py-2 px-8 rounded-lg hover:bg-blue-700 transition-colors';
+            } else {
+                modalCancelBtn.classList.remove('hidden');
+                modalConfirmBtn.textContent = 'Xác nhận';
+                modalConfirmBtn.className = 'bg-red-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-700 transition-colors';
+            }
+            customModal.classList.add('visible');
+        };
+        const hideModal = () => {
+            customModal.classList.remove('visible');
+            confirmCallback = null;
+        };
+        const showConfirm = (message, callback) => {
+            confirmCallback = callback;
+            showModal(message, 'confirm');
+        };
+        modalConfirmBtn.addEventListener('click', () => {
+            if (confirmCallback) confirmCallback();
+            hideModal();
+        });
+        modalCancelBtn.addEventListener('click', hideModal);
+        customModal.addEventListener('click', (e) => {
+            if (e.target === customModal) hideModal();
+        });
+
+        const generateQuestionsFromAI = async (textContext, imageContext, type) => {
+            generateBtnText.classList.add('hidden');
+            loader.classList.remove('hidden');
+            generateBtn.disabled = true;
+            let prompt, schema;
+            let contextPrompt = aiMode === 'keyword' ? `dựa trên chủ đề "${textContext}"` : `dựa trên nội dung tài liệu sau: "${textContext}"`;
+            if (type === 'true_false') {
+                prompt = `Với tư cách là một chuyên gia về môn Giáo dục thể chất bậc Đại học ở Việt Nam, hãy tạo ra 1 câu hỏi dạng Đúng/Sai ${contextPrompt}. Câu hỏi này cần có một câu dẫn chung, và chính xác 4 mệnh đề riêng biệt để sinh viên xác định tính đúng/sai. Với mỗi mệnh đề, hãy cho biết nó là Đúng (true) hay Sai (false). Cuối cùng, cung cấp một lời giải thích chung cho cả 4 mệnh đề. Cung cấp kết quả dưới dạng một mảng JSON chứa một object duy nhất theo schema đã cho.`;
+                schema = { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, statements: { type: "ARRAY", items: { type: "OBJECT", properties: { statement_text: { type: "STRING" }, is_true: { type: "BOOLEAN" } }, required: ["statement_text", "is_true"] } }, explanation: { type: "STRING" } }, required: ["question_text", "statements", "explanation"] } };
+            } else {
+                prompt = `Với tư cách là một chuyên gia về môn Giáo dục thể chất bậc Đại học ở Việt Nam, hãy tạo ra 3 câu hỏi trắc nghiệm nhiều phương án ${contextPrompt}. Mỗi câu hỏi phải có chính xác 4 phương án trả lời, trong đó **chỉ có một phương án đúng duy nhất**. Đánh dấu phương án đúng và cung cấp một lời giải thích ngắn gọn (1-2 câu) vì sao đáp án đó là đúng. Cung cấp kết quả dưới dạng một mảng JSON theo schema đã cho.`;
+                schema = { type: "ARRAY", items: { type: "OBJECT", properties: { question_text: { type: "STRING" }, answers: { type: "ARRAY", items: { type: "OBJECT", properties: { answer_text: { type: "STRING" }, is_correct: { type: "BOOLEAN" } }, required: ["answer_text", "is_correct"] } }, explanation: { type: "STRING" } }, required: ["question_text", "answers", "explanation"] } };
+            }
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                let parts = [{ text: prompt }];
+                if (imageContext) {
+                    parts.push({ inlineData: { mimeType: imageContext.type, data: imageContext.data } });
+                }
+                const payload = { contents: [{ parts: parts }], generationConfig: { responseMimeType: "application/json", responseSchema: schema } };
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API call failed: ${response.status}`);
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    const generatedQuestions = JSON.parse(result.candidates[0].content.parts[0].text);
+                    generatedQuestions.forEach(q => {
+                        const timestamp = Date.now() + Math.random();
+                        let newQuestion;
+                        if (type === 'true_false') {
+                            if (!q.statements || q.statements.length !== 4) return;
+                            newQuestion = { id: `q_${timestamp}`, type: 'true_false', question: q.question_text, explanation: q.explanation, answers: q.statements.map((stmt, index) => ({ id: `a_${timestamp}_${index}`, text: stmt.statement_text, isCorrect: stmt.is_true })) };
+                        } else {
+                            if (!q.answers || q.answers.length !== 4) return;
+                            let correctCount = q.answers.filter(a => a.is_correct).length;
+                            if (correctCount !== 1) return;
+                            newQuestion = { id: `q_${timestamp}`, type: 'multiple_choice', question: q.question_text, explanation: q.explanation, answers: q.answers.map((a, index) => ({ id: `a_${timestamp}_${index}`, text: a.answer_text, isCorrect: a.is_correct })) };
+                        }
+                        quizData.push(newQuestion);
+                    });
+                    renderQuestionList();
+                } else {
+                    console.error("Unexpected API response:", result);
+                    showModal("Không thể phân tích dữ liệu từ AI.", 'alert');
+                }
+            } catch (error) {
+                console.error('Error fetching from AI:', error);
+                showModal('Đã có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại.', 'alert');
+            } finally {
+                generateBtnText.classList.remove('hidden');
+                loader.classList.add('hidden');
+                generateBtn.disabled = false;
+            }
+        };
+        const getTeacherComment = async (score, name) => {
+            const prompt = `Hãy đóng vai một giảng viên môn Giáo dục thể chất. Dựa trên điểm số ${score}/10 của sinh viên tên là "${name}", hãy viết một lời nhận xét ngắn gọn (2-3 câu) với danh xưng "${teacherTitle}", vừa mang tính đánh giá, vừa động viên, khích lệ một cách nhân văn.`;
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error('API call for comment failed');
+                const result = await response.json();
+                return result.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Failed to get teacher comment:", error);
+                return "Hãy tiếp tục cố gắng ở những bài sau nhé!";
+            }
+        };
+        const renderQuestionList = () => {
+            questionList.innerHTML = '';
+            if (quizData.length === 0) {
+                questionList.innerHTML = '<p class="text-slate-500 text-center italic mt-4">Chưa có câu hỏi nào.</p>';
+                deleteAllBtn.classList.add('hidden');
+                return;
+            }
+            deleteAllBtn.classList.remove('hidden');
+            quizData.forEach((q, index) => {
+                const typeLabel = q.type === 'true_false' ? 'Đúng/Sai' : 'Nhiều lựa chọn';
+                const div = document.createElement('div');
+                div.className = `p-3 border rounded-lg cursor-pointer hover:bg-slate-100 transition-all duration-200 ${q.id === selectedQuestionId ? 'bg-blue-100 border-blue-500 shadow-sm' : 'border-slate-200'}`;
+                div.innerHTML = `<div class="flex items-start"><span class="font-bold mr-2 text-slate-500">${index + 1}.</span><div class="flex-grow"><span class="text-xs font-semibold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5 mr-2">${typeLabel}</span> <span class="text-slate-700">${q.question}</span></div></div>`;
+                div.dataset.id = q.id;
+                div.addEventListener('click', () => selectQuestion(q.id));
+                questionList.appendChild(div);
+            });
+        };
+        const renderEditor = () => {
+            if (!selectedQuestionId) {
+                editorPanel.classList.add('hidden');
+                editorPlaceholder.classList.remove('hidden');
+                return;
+            }
+            editorPlaceholder.classList.add('hidden');
+            editorPanel.classList.remove('hidden');
+            const question = quizData.find(q => q.id === selectedQuestionId);
+            if (!question) return;
+            questionEditor.innerHTML = question.question;
+            explanationEditor.innerHTML = question.explanation || '';
+            answerEditor.innerHTML = '';
+            if (question.type === 'true_false') {
+                addAnswerBtn.classList.add('hidden');
+                question.answers.forEach(answer => {
+                    const answerDiv = document.createElement('div');
+                    answerDiv.className = 'flex items-center space-x-3 p-1 group';
+                    answerDiv.dataset.answerId = answer.id;
+                    const answerText = document.createElement('div');
+                    answerText.contentEditable = true;
+                    answerText.className = 'flex-grow p-2 border border-slate-300 rounded-md focus:border-blue-500 focus:ring-0 w-full transition bg-slate-50/50';
+                    answerText.innerHTML = answer.text;
+                    const trueFalseGroup = document.createElement('div');
+                    trueFalseGroup.className = 'flex items-center gap-x-3 shrink-0';
+                    const trueId = `editor_tf_true_${answer.id}`;
+                    const falseId = `editor_tf_false_${answer.id}`;
+                    trueFalseGroup.innerHTML = `<div class="flex items-center"><input type="radio" id="${trueId}" name="editor_tf_${answer.id}" ${answer.isCorrect ? 'checked' : ''} class="h-4 w-4 text-green-600 focus:ring-green-500 border-slate-300"><label for="${trueId}" class="ml-2 text-sm text-green-700 font-medium">Đúng</label></div><div class="flex items-center"><input type="radio" id="${falseId}" name="editor_tf_${answer.id}" ${!answer.isCorrect ? 'checked' : ''} class="h-4 w-4 text-red-600 focus:ring-red-500 border-slate-300"><label for="${falseId}" class="ml-2 text-sm text-red-700 font-medium">Sai</label></div>`;
+                    answerDiv.appendChild(answerText);
+                    answerDiv.appendChild(trueFalseGroup);
+                    answerEditor.appendChild(answerDiv);
+                });
+            } else {
+                addAnswerBtn.classList.add('hidden');
+                question.answers.forEach(answer => {
+                    const answerDiv = document.createElement('div');
+                    answerDiv.className = 'flex items-center space-x-3 p-1 group';
+                    answerDiv.dataset.answerId = answer.id;
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = `editor_mc_${question.id}`;
+                    radio.checked = answer.isCorrect;
+                    radio.className = 'h-5 w-5 rounded-full border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0 transition';
+                    const answerText = document.createElement('div');
+                    answerText.contentEditable = true;
+                    answerText.className = 'flex-grow p-2 border border-transparent rounded-md hover:border-slate-300 focus:border-blue-500 focus:ring-0 w-full transition bg-slate-50/50';
+                    answerText.innerHTML = answer.text;
+                    answerDiv.appendChild(radio);
+                    answerDiv.appendChild(answerText);
+                    answerEditor.appendChild(answerDiv);
+                });
+            }
+        };
+        const selectQuestion = (id) => {
+            selectedQuestionId = id;
+            renderQuestionList();
+            renderEditor();
+        };
+        const showCreationScreen = () => {
+            selectionScreen.classList.add('hidden');
+            creationContainer.classList.remove('hidden');
+            backToSelectionBtn.classList.remove('hidden');
+        };
+        const saveEditorState = () => {
+            if (!selectedQuestionId) return;
+            const question = quizData.find(q => q.id === selectedQuestionId);
+            if (!question) return;
+            question.question = questionEditor.innerHTML;
+            question.explanation = explanationEditor.innerHTML;
+            if (question.type === 'true_false') {
+                const answerElements = answerEditor.querySelectorAll('[data-answer-id]');
+                answerElements.forEach(el => {
+                    const answerId = el.dataset.answerId;
+                    const answerInData = question.answers.find(a => a.id === answerId);
+                    if (answerInData) {
+                        answerInData.text = el.querySelector('[contenteditable="true"]').innerHTML;
+                        answerInData.isCorrect = el.querySelector(`input[id^="editor_tf_true_"]`).checked;
+                    }
+                });
+            } else {
+                const answerElements = answerEditor.querySelectorAll('[data-answer-id]');
+                answerElements.forEach(el => {
+                    const answerId = el.dataset.answerId;
+                    const answerInData = question.answers.find(a => a.id === answerId);
+                    if (answerInData) {
+                        answerInData.text = el.querySelector('[contenteditable="true"]').innerHTML;
+                        answerInData.isCorrect = el.querySelector('input[type="radio"]').checked;
+                    }
+                });
+            }
+        };
+        designOnlineBtn.addEventListener('click', () => {
+            showCreationScreen();
+            teacherActions.classList.remove('hidden');
+            printBtn.classList.add('hidden');
+            exportWordBtn.classList.remove('hidden');
+            switchModeBtn.classList.remove('hidden');
+            aiGeneratorSection.classList.remove('hidden');
+            addManualBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Thêm thủ công';
+        });
+        designOfflineBtn.addEventListener('click', () => {
+            showCreationScreen();
+            teacherActions.classList.remove('hidden');
+            printBtn.classList.remove('hidden');
+            exportWordBtn.classList.remove('hidden');
+            switchModeBtn.classList.add('hidden');
+            aiGeneratorSection.classList.add('hidden');
+            addManualBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Thêm câu hỏi mới';
+        });
+        backToSelectionBtn.addEventListener('click', () => {
+            selectionScreen.classList.remove('hidden');
+            creationContainer.classList.add('hidden');
+            teacherActions.classList.add('hidden');
+            backToSelectionBtn.classList.add('hidden');
+        });
+        aiModeKeyword.addEventListener('click', () => {
+            aiMode = 'keyword';
+            keywordInputContainer.classList.remove('hidden');
+            documentInputContainer.classList.add('hidden');
+            aiModeKeyword.classList.add('bg-white', 'border-slate-200', 'border-l', 'border-t', 'border-r');
+            aiModeKeyword.classList.remove('text-slate-500');
+            aiModeDocument.classList.remove('bg-white', 'border-slate-200', 'border-l', 'border-t', 'border-r');
+            aiModeDocument.classList.add('text-slate-500');
+        });
+        aiModeDocument.addEventListener('click', () => {
+            aiMode = 'document';
+            keywordInputContainer.classList.add('hidden');
+            documentInputContainer.classList.remove('hidden');
+            aiModeDocument.classList.add('bg-white', 'border-slate-200', 'border-l', 'border-t', 'border-r');
+            aiModeDocument.classList.remove('text-slate-500');
+            aiModeKeyword.classList.remove('bg-white', 'border-slate-200', 'border-l', 'border-t', 'border-r');
+            aiModeKeyword.classList.add('text-slate-500');
+        });
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const base64String = e.target.result.split(',')[1];
+                    uploadedImageBase64 = { type: file.type, data: base64String };
+                    imagePreview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        generateBtn.addEventListener('click', () => {
+            const textContext = aiMode === 'keyword' ? keywordInput.value.trim() : documentInput.value.trim();
+            const type = questionType.value;
+            if (aiMode === 'document' && !textContext && !uploadedImageBase64) {
+                showModal('Vui lòng dán văn bản hoặc tải lên hình ảnh.', 'alert');
+                return;
+            }
+            if (aiMode === 'keyword' && !textContext) {
+                showModal('Vui lòng nhập từ khóa.', 'alert');
+                return;
+            }
+            generateQuestionsFromAI(textContext, uploadedImageBase64, type);
+        });
+        addManualBtn.addEventListener('click', () => {
+            const type = questionType.value;
+            const timestamp = Date.now() + Math.random();
+            const newQuestion = { id: `q_${timestamp}`, type: type, question: 'Câu hỏi mới. Vui lòng chỉnh sửa.', explanation: 'Giải thích chung cho các đáp án.', answers: [] };
+            if (type === 'true_false') {
+                newQuestion.question = 'Xác định tính đúng/sai của các mệnh đề sau:';
+                newQuestion.answers = [{ id: `a_${timestamp}_1`, text: 'Mệnh đề A', isCorrect: true }, { id: `a_${timestamp}_2`, text: 'Mệnh đề B', isCorrect: false }, { id: `a_${timestamp}_3`, text: 'Mệnh đề C', isCorrect: false }, { id: `a_${timestamp}_4`, text: 'Mệnh đề D', isCorrect: false }, ];
+            } else {
+                newQuestion.answers = [{ id: `a_${timestamp}_1`, text: 'Phương án A', isCorrect: true }, { id: `a_${timestamp}_2`, text: 'Phương án B', isCorrect: false }, { id: `a_${timestamp}_3`, text: 'Phương án C', isCorrect: false }, { id: `a_${timestamp}_4`, text: 'Phương án D', isCorrect: false }, ];
+            }
+            quizData.push(newQuestion);
+            renderQuestionList();
+            selectQuestion(newQuestion.id);
+        });
+        deleteAllBtn.addEventListener('click', () => {
+            if (quizData.length > 0) {
+                showConfirm('Bạn có chắc chắn muốn xóa TOÀN BỘ bộ câu hỏi này không?', () => {
+                    quizData = [];
+                    selectedQuestionId = null;
+                    renderQuestionList();
+                    renderEditor();
+                });
+            }
+        });
+        saveChangesBtn.addEventListener('click', () => {
+            if (!selectedQuestionId) return;
+            saveEditorState();
+            renderQuestionList();
+            showModal('Đã lưu thay đổi thành công!', 'alert');
+        });
+        deleteQuestionBtn.addEventListener('click', () => {
+            if (!selectedQuestionId) return;
+            showConfirm('Bạn có chắc chắn muốn xóa câu hỏi này không?', () => {
+                quizData = quizData.filter(q => q.id !== selectedQuestionId);
+                selectedQuestionId = null;
+                renderQuestionList();
+                renderEditor();
+            });
+        });
+        const startQuiz = () => {
+            studentInfoScreen.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+            if (studentView.requestFullscreen) {
+                studentView.requestFullscreen().catch(err => {
+                    console.error(`Lỗi khi bật chế độ toàn màn hình: ${err.message} (${err.name})`);
+                });
+            }
+            currentStudentQuestionIndex = 0;
+            studentAnswers = {};
+            quizData.forEach(q => {
+                studentAnswers[q.id] = {};
+            });
+            resultsContainer.classList.add('hidden');
+            resultsContainer.innerHTML = '';
+            renderStudentQuestion();
+        };
+        switchModeBtn.addEventListener('click', () => {
+            if (quizData.length === 0) {
+                showModal('Chưa có câu hỏi nào trong bộ đề. Vui lòng tạo câu hỏi trước.', 'alert');
+                return;
+            }
+            teacherView.classList.add('hidden');
+            teacherActions.classList.add('hidden');
+            studentView.classList.remove('hidden');
+            studentHeaderActions.classList.remove('hidden');
+            backToSelectionBtn.classList.add('hidden');
+            studentInfoScreen.classList.remove('hidden');
+            quizContainer.classList.add('hidden');
+            resultsContainer.classList.add('hidden');
+        });
+        startQuizBtn.addEventListener('click', () => {
+            let name = studentNameInput.value.trim();
+            if (!name) {
+                name = "Sinh viên";
+            }
+            studentName = name;
+            startQuiz();
+        });
+        const renderStudentQuestion = () => {
+            const question = quizData[currentStudentQuestionIndex];
+            if (!question) return;
+            studentQuestionContainer.innerHTML = '';
+            const questionText = document.createElement('h3');
+            questionText.className = 'text-2xl font-bold mb-6 text-slate-800';
+            questionText.innerHTML = `<span class="text-slate-400 font-medium">Câu ${currentStudentQuestionIndex + 1}:</span> ${question.question}`;
+            studentQuestionContainer.appendChild(questionText);
+            const optionsContainer = document.createElement('div');
+            optionsContainer.className = 'space-y-3';
+            if (question.type === 'true_false') {
+                question.answers.forEach((answer, index) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center justify-between p-4 border-2 border-slate-200 rounded-lg';
+                    const labelText = document.createElement('span');
+                    labelText.innerHTML = `<span class="font-bold">${String.fromCharCode(65 + index)}.</span> ${answer.text}`;
+                    labelText.className = 'text-slate-800 flex-grow text-lg';
+                    const radioGroup = document.createElement('div');
+                    radioGroup.className = 'flex items-center gap-x-4 shrink-0 ml-4';
+                    const trueId = `student_tf_true_${answer.id}`;
+                    const falseId = `student_tf_false_${answer.id}`;
+                    const studentChoice = studentAnswers[question.id][answer.id];
+                    radioGroup.innerHTML = `<label for="${trueId}" class="flex items-center cursor-pointer p-2 rounded-md hover:bg-green-50 has-[:checked]:bg-green-100 has-[:checked]:ring-2 ring-green-400"><input type="radio" id="${trueId}" name="student_tf_${answer.id}" value="true" ${studentChoice === true ? 'checked' : ''} class="h-5 w-5 text-green-600 focus:ring-green-500 border-slate-400"><span class="ml-2 font-medium text-green-700">Đúng</span></label><label for="${falseId}" class="flex items-center cursor-pointer p-2 rounded-md hover:bg-red-50 has-[:checked]:bg-red-100 has-[:checked]:ring-2 ring-red-400"><input type="radio" id="${falseId}" name="student_tf_${answer.id}" value="false" ${studentChoice === false ? 'checked' : ''} class="h-5 w-5 text-red-600 focus:ring-red-500 border-slate-400"><span class="ml-2 font-medium text-red-700">Sai</span></label>`;
+                    radioGroup.addEventListener('change', (e) => {
+                        studentAnswers[question.id][answer.id] = (e.target.value === 'true');
+                    });
+                    wrapper.appendChild(labelText);
+                    wrapper.appendChild(radioGroup);
+                    optionsContainer.appendChild(wrapper);
+                });
+            } else {
+                question.answers.forEach(answer => {
+                    const wrapper = document.createElement('label');
+                    wrapper.className = 'flex items-center p-4 border-2 border-slate-200 rounded-lg hover:bg-slate-50 hover:border-blue-400 cursor-pointer transition-colors has-[:checked]:bg-blue-50 has-[:checked]:border-blue-500';
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = `student_answer_${question.id}`;
+                    input.id = answer.id;
+                    input.value = answer.id;
+                    input.className = 'h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300';
+                    if (studentAnswers[question.id] && studentAnswers[question.id][answer.id]) {
+                        input.checked = true;
+                    }
+                    input.addEventListener('change', (e) => {
+                        studentAnswers[question.id] = { [e.target.value]: true };
+                    });
+                    const labelText = document.createElement('span');
+                    labelText.innerHTML = answer.text;
+                    labelText.className = 'ml-4 text-slate-800 flex-grow cursor-pointer text-lg';
+                    wrapper.appendChild(input);
+                    wrapper.appendChild(labelText);
+                    optionsContainer.appendChild(wrapper);
+                });
+            }
+            studentQuestionContainer.appendChild(optionsContainer);
+            questionCounter.textContent = `Câu ${currentStudentQuestionIndex + 1} / ${quizData.length}`;
+            prevQuestionBtn.disabled = currentStudentQuestionIndex === 0;
+            if (currentStudentQuestionIndex === quizData.length - 1) {
+                nextQuestionBtn.classList.add('hidden');
+                submitQuizBtn.classList.remove('hidden');
+            } else {
+                nextQuestionBtn.classList.remove('hidden');
+                submitQuizBtn.classList.add('hidden');
+            }
+        };
+        const showResults = async () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+            quizContainer.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+            let score = 0;
+            const totalPossibleScore = quizData.length;
+            quizData.forEach((q) => {
+                if (q.type === 'true_false') {
+                    let correctStatements = 0;
+                    if (studentAnswers[q.id]) {
+                        q.answers.forEach(ans => {
+                            const studentChoice = studentAnswers[q.id][ans.id];
+                            if (studentChoice !== undefined && studentChoice === ans.isCorrect) {
+                                correctStatements++;
+                            }
+                        });
+                    }
+                    switch (correctStatements) {
+                        case 1: score += 0.1; break;
+                        case 2: score += 0.25; break;
+                        case 3: score += 0.5; break;
+                        case 4: score += 1; break;
+                    }
+                } else {
+                    const correctAnswerId = q.answers.find(a => a.isCorrect)?.id;
+                    const studentChoiceId = studentAnswers[q.id] ? Object.keys(studentAnswers[q.id])[0] : undefined;
+                    if (correctAnswerId === studentChoiceId) {
+                        score += 1;
+                    }
+                }
+            });
+            finalScore = score;
+            const scaledScore = totalPossibleScore > 0 ? ((score / totalPossibleScore) * 10).toFixed(2) : 0;
+            resultsContainer.innerHTML = `<div class="text-center"><h2 class="text-3xl font-bold text-slate-800 mb-2">Hoàn thành!</h2><p class="text-lg text-slate-500 mb-6">Kết quả của <span class="font-bold text-blue-600">${studentName}</span></p><p class="text-6xl font-bold text-blue-600 mb-2">${scaledScore}</p><p class="text-slate-500 mb-8">(Điểm đạt được: ${score.toFixed(2)} / ${totalPossibleScore})</p><div id="teacherCommentContainer" class="my-6 p-4 bg-amber-50 border-l-4 border-amber-400 text-amber-800 rounded-r-lg"><p class="font-semibold">Nhận xét của giảng viên:</p><p id="teacherComment" class="italic">Đang tạo nhận xét...</p></div><div class="flex items-center justify-center gap-4"><div class="flex items-center"><input type="checkbox" id="includeCommentCheckbox" checked class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><label for="includeCommentCheckbox" class="ml-2 text-sm text-slate-600">Đính kèm nhận xét vào tệp xuất</label></div></div><div class="flex justify-center gap-4 mt-4"><button id="exportResultsWordBtn" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 mx-auto"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 15v-4"/><path d="M15 14l-3-3-3 3"/></svg>Xuất Word</button></div></div><h3 class="text-xl font-bold text-slate-700 my-6 border-b pb-2">Xem lại đáp án</h3>`;
+            const teacherCommentElement = document.getElementById('teacherComment');
+            const teacherComment = await getTeacherComment(scaledScore, studentName);
+            teacherCommentElement.textContent = teacherComment;
+            let detailedResultsHTML = '';
+            quizData.forEach((q, index) => {
+                let isQuestionCorrect = true;
+                let resultHTML = '';
+                if (q.type === 'true_false') {
+                    let correctStatements = 0;
+                    q.answers.forEach(ans => {
+                        if (studentAnswers[q.id][ans.id] === ans.isCorrect) {
+                            correctStatements++;
+                        }
+                    });
+                    let questionScore = 0;
+                    switch (correctStatements) {
+                        case 1: questionScore = 0.1; break;
+                        case 2: questionScore = 0.25; break;
+                        case 3: questionScore = 0.5; break;
+                        case 4: questionScore = 1; break;
+                    }
+                    isQuestionCorrect = correctStatements === 4;
+                    resultHTML += `<p class="font-semibold text-sm text-slate-600 mb-2">Điểm câu này: ${questionScore.toFixed(2)} / 1.0</p>`
+                    q.answers.forEach((ans, ansIndex) => {
+                        const studentChoice = studentAnswers[q.id][ans.id];
+                        const isStatementCorrect = studentChoice === ans.isCorrect;
+                        let studentChoiceText = studentChoice === undefined ? 'Chưa trả lời' : (studentChoice ? 'Đúng' : 'Sai');
+                        let correctChoiceText = ans.isCorrect ? 'Đúng' : 'Sai';
+                        resultHTML += `<div class="ml-4 p-2 my-1 border-l-4 ${isStatementCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'} rounded-r-md"><p class="text-slate-800">${String.fromCharCode(65 + ansIndex)}. ${ans.text}</p><p class="text-sm ${isStatementCorrect ? 'text-green-700' : 'text-red-700'}"><strong>Bạn chọn: ${studentChoiceText}.</strong> Đáp án đúng: <strong>${correctChoiceText}</strong></p></div>`;
+                    });
+                } else {
+                    const correctAnswerId = q.answers.find(a => a.isCorrect)?.id;
+                    const studentChoiceId = Object.keys(studentAnswers[q.id])[0];
+                    isQuestionCorrect = correctAnswerId === studentChoiceId;
+                    q.answers.forEach(ans => {
+                        let icon = '';
+                        let textClass = 'text-slate-600';
+                        if (ans.isCorrect) {
+                            icon = '✔';
+                            textClass = 'text-green-700 font-semibold';
+                        }
+                        if (studentChoiceId === ans.id && !ans.isCorrect) {
+                            icon = '✖';
+                            textClass = 'text-red-700 line-through';
+                        }
+                        resultHTML += `<p class="ml-4 flex items-center gap-2 ${textClass}">${icon} ${ans.text}</p>`;
+                    });
+                }
+                detailedResultsHTML += `<div class="mb-4 p-4 border rounded-lg ${isQuestionCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">`;
+                detailedResultsHTML += `<p class="font-bold mb-3 text-slate-800">Câu ${index + 1}: ${q.question}</p>`;
+                detailedResultsHTML += resultHTML;
+                if (q.explanation) {
+                    detailedResultsHTML += `<div class="mt-3 pt-3 border-t border-dashed ${isQuestionCorrect ? 'border-green-300' : 'border-red-300'}"><p class="text-sm text-slate-700" style="font-family: serif; font-style: italic;"><span class="font-semibold not-italic" style="font-family: 'Be Vietnam Pro', sans-serif;">Giải thích:</span> ${q.explanation}</p></div>`;
+                }
+                detailedResultsHTML += `</div>`;
+            });
+            resultsContainer.innerHTML += detailedResultsHTML;
+            const includeCommentCheckbox = document.getElementById('includeCommentCheckbox');
+            document.getElementById('exportResultsWordBtn').addEventListener('click', () => {
+                const finalComment = includeCommentCheckbox.checked ? teacherComment : '';
+                const content = generateQuizHTML({ isStudent: true, teacherComment: finalComment });
+                const blob = htmlDocx.asBlob(content);
+                saveAs(blob, `Ket-qua-${studentName.replace(/ /g, '_')}.docx`);
+            });
+        };
+        backToTeacherViewBtn.addEventListener('click', () => {
+            studentView.classList.add('hidden');
+            studentHeaderActions.classList.add('hidden');
+            teacherView.classList.remove('hidden');
+            if (!creationContainer.classList.contains('hidden')) {
+                teacherActions.classList.remove('hidden');
+            }
+        });
+        nextQuestionBtn.addEventListener('click', () => {
+            if (currentStudentQuestionIndex < quizData.length - 1) {
+                currentStudentQuestionIndex++;
+                renderStudentQuestion();
+            }
+        });
+        prevQuestionBtn.addEventListener('click', () => {
+            if (currentStudentQuestionIndex > 0) {
+                currentStudentQuestionIndex--;
+                renderStudentQuestion();
+            }
+        });
+        submitQuizBtn.addEventListener('click', () => {
+            showConfirm('Bạn có chắc chắn muốn nộp bài không?', showResults);
+        });
+        const generateQuizHTML = (options = {}) => {
+            const { isStudent = false, teacherComment = '' } = options;
+            const now = new Date();
+            const dateTimeString = `Ngày ${now.getDate()} tháng ${now.getMonth() + 1} năm ${now.getFullYear()}, lúc ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+            const wordStyles = `<style>@page Section1 { size: 21cm 29.7cm; margin: 2cm 1.5cm 2cm 3cm; } div.Section1 { page: Section1; } body { font-family: 'Times New Roman', serif; font-size: 13pt; } p, li, div, span, td { font-family: 'Times New Roman', serif; } .correct-answer { color: #047857; font-weight: bold; } .wrong-answer { color: #b91c1c; text-decoration: line-through; }</style>`;
+            let headerContent = `<div style="text-align: center; margin-bottom: 2rem;"><h1 style="font-size: 1.5rem; font-weight: bold;">${isStudent ? 'KẾT QUẢ BÀI LÀM' : 'BÀI KIỂM TRA'}</h1><h2 style="font-size: 1.2rem;">Môn: Giáo dục thể chất</h2><p style="font-size: 0.9rem; color: #555;">${dateTimeString}</p><p style="font-size: 0.9rem; color: #555;">Giảng viên: ${teacherName}</p></div>`;
+            if (isStudent) {
+                const totalPossibleScore = quizData.length;
+                const scaledScore = totalPossibleScore > 0 ? ((finalScore / totalPossibleScore) * 10).toFixed(2) : 0;
+                headerContent += `<div style="margin-bottom: 1rem; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"><p><strong>Họ và tên:</strong> ${studentName}</p><p><strong>Điểm số (thang 10):</strong> ${scaledScore}</p><p><strong>Điểm đạt được:</strong> ${finalScore.toFixed(2)} / ${totalPossibleScore}</p></div>`;
+                if (teacherComment) {
+                    headerContent += `<div style="margin-bottom: 2rem; padding: 10px; background-color: #fefce8; border-left: 4px solid #facc15; color: #854d0e;"><p><strong>Nhận xét của giảng viên:</strong></p><p><em>${teacherComment}</em></p></div>`;
+                }
+            } else {
+                headerContent += `<table style="width: 100%; margin-bottom: 1.5rem; font-weight: bold; font-size: 13pt;"><tbody><tr><td style="width: 50%;">Họ và tên: .......................................</td><td style="width: 50%;">Lớp: .......................................</td></tr></tbody></table>`;
+            }
+            let mainContent = `<h3 style="font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 1rem;">${isStudent ? 'CHI TIẾT BÀI LÀM' : 'ĐỀ BÀI'}</h3>`;
+            let answerKeyContent = ``;
+            quizData.forEach((q, index) => {
+                mainContent += `<div style="margin-bottom: 1rem;"><p><span style="font-weight: bold;">Câu ${index + 1}:</span> ${q.question}</p>`;
+                if (q.type === 'true_false') {
+                    q.answers.forEach((ans, ansIndex) => {
+                        let content = `<p style="margin-left: 20px;"><span style="font-weight: bold;">${String.fromCharCode(65 + ansIndex)}.</span> ${ans.text}</p>`;
+                        if (isStudent) {
+                            const studentChoice = studentAnswers[q.id][ans.id];
+                            const isStatementCorrect = studentChoice === ans.isCorrect;
+                            const studentChoiceText = studentChoice === undefined ? 'Chưa trả lời' : (studentChoice ? 'Đúng' : 'Sai');
+                            const correctChoiceText = ans.isCorrect ? 'Đúng' : 'Sai';
+                            content += `<p style="margin-left: 40px; font-size: 11pt; color: ${isStatementCorrect ? '#047857' : '#b91c1c'};"><em>Lựa chọn: ${studentChoiceText} - Đáp án: ${correctChoiceText}</em></p>`;
+                        }
+                        mainContent += content;
+                    });
+                } else {
+                    mainContent += `<table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;"><tbody><tr>`;
+                    const studentChoiceId = isStudent ? Object.keys(studentAnswers[q.id])[0] : null;
+                    q.answers.forEach((ans, ansIndex) => {
+                        const label = String.fromCharCode(65 + ansIndex);
+                        let content = `<span style="font-weight: bold;">${label}.</span> ${ans.text}`;
+                        if (isStudent) {
+                            if (ans.isCorrect) content = `<span class="correct-answer">${content}</span>`;
+                            if (studentChoiceId === ans.id && !ans.isCorrect) content = `<span class="wrong-answer">${content}</span>`;
+                        }
+                        mainContent += `<td style="width: 50%; padding: 4px;">${content}</td>`;
+                        if ((ansIndex + 1) % 2 === 0) mainContent += `</tr><tr>`;
+                    });
+                    mainContent += `</tr></tbody></table>`;
+                }
+                if (isStudent && q.explanation) {
+                    mainContent += `<div style="margin-top: 5px; padding: 5px; background-color: #f0f9ff; border-radius: 4px;"><p style="font-size: 11pt;"><strong>Giải thích:</strong> <span style="font-family: 'Times New Roman', serif; font-style: italic;">${q.explanation}</span></p></div>`;
+                }
+                mainContent += `</div>`;
+                if (!isStudent) {
+                    let correctAnswersText = '';
+                    if (q.type === 'true_false') {
+                        correctAnswersText = q.answers.map((ans, i) => `${String.fromCharCode(65 + i)} - ${ans.isCorrect ? 'Đ' : 'S'}`).join('; ');
+                    } else {
+                        correctAnswersText = String.fromCharCode(65 + q.answers.findIndex(a => a.isCorrect));
+                    }
+                    answerKeyContent += `<li style="margin-bottom: 0.5rem;">${correctAnswersText}<br><em style="font-size: 11pt; color: #555; font-family: 'Times New Roman', serif;">${q.explanation || ''}</em></li>`;
+                }
+            });
+            if (!isStudent) {
+                answerKeyContent = `<br clear=all style='mso-special-character:line-break;page-break-before:always'><div><h3 style="font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 1rem;">ĐÁP ÁN & GIẢI THÍCH</h3><ol style="list-style-type: decimal; padding-left: 20px;">${answerKeyContent}</ol></div>`;
+            }
+            const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">${wordStyles}</head><body><div id="export-content" class="Section1">${headerContent}${mainContent}${answerKeyContent}</div></body></html>`;
+            return finalHtml;
+        };
+        printBtn.addEventListener('click', () => {
+            if (quizData.length === 0) {
+                showModal('Không có câu hỏi nào để in.', 'alert');
+                return;
+            }
+            printArea.innerHTML = generateQuizHTML();
+            window.print();
+            printArea.innerHTML = '';
+        });
+        exportWordBtn.addEventListener('click', () => {
+            if (quizData.length === 0) {
+                showModal('Không có câu hỏi nào để xuất ra Word.', 'alert');
+                return;
+            }
+            const content = generateQuizHTML();
+            const blob = htmlDocx.asBlob(content);
+            saveAs(blob, 'De-kiem-tra-GDTC.docx');
+        });
+        startAppBtn.addEventListener('click', () => {
+            const name = teacherNameInput.value.trim();
+            const title = teacherTitleSelect.value;
+            if (!name || !title) {
+                showModal('Vui lòng nhập đầy đủ họ tên và chọn danh xưng.', 'alert');
+                return;
+            }
+            teacherName = name;
+            teacherTitle = title;
+            teacherInfoModal.classList.remove('visible');
+            appContainer.classList.remove('hidden');
+        });
+        const init = () => {
+            teacherInfoModal.classList.add('visible');
+            teacherActions.classList.add('hidden');
+            renderQuestionList();
+            renderEditor();
+            updateClock();
+            setInterval(updateClock, 1000);
+        };
+        init();
+    });
+    </script>
+</body>
+</html>
