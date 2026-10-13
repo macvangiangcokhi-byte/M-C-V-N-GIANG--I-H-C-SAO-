@@ -1027,7 +1027,7 @@
             if (!isStudent) {
                 answerKeyContent = `<br clear=all style='mso-special-character:line-break;page-break-before:always'><div><h3 style="font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 1rem;">ĐÁP ÁN & GIẢI THÍCH</h3><ol style="list-style-type: decimal; padding-left: 20px;">${answerKeyContent}</ol></div>`;
             }
-            const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">${wordStyles}</head><body><div id="export-content" class="Section1">${headerContent}${mainContent}${answerKeyContent}</div></body></html>`;
+            const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">${wordStyles}<` + `/head><body><div id="export-content" class="Section1">${headerContent}${mainContent}${answerKeyContent}</div></body></html>`;
             return finalHtml;
         };
         printBtn.addEventListener('click', () => {
